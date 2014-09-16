@@ -133,6 +133,8 @@ namespace videocore { namespace simpleApi {
     CGPoint _focusPOI;
     CGPoint _exposurePOI;
     
+    int    _minBitrate;
+    int    _maxBitrate;
 }
 @property (nonatomic, readwrite) VCSessionState rtmpSessionState;
 
@@ -158,6 +160,8 @@ namespace videocore { namespace simpleApi {
 @dynamic exposurePointOfInterest;
 @dynamic useAdaptiveBitrate;
 @dynamic estimatedThroughput;
+@dynamic minBitrate;
+@dynamic maxBitrate;
 
 @dynamic previewView;
 // -----------------------------------------------------------------------------
@@ -337,6 +341,26 @@ namespace videocore { namespace simpleApi {
 - (int) estimatedThroughput {
     return _estimatedThroughput;
 }
+
+- (int) minBitrate
+{
+    return _minBitrate;
+}
+- (void) setminBitrate:(int)minBitrate
+{
+    _minBitrate = minBitrate;
+}
+
+- (int) maxBitrate
+{
+    return _maxBitrate;
+}
+- (void) setmaxBitrate:(int)maxBitrate
+{
+    _maxBitrate = maxBitrate;
+}
+
+
 // -----------------------------------------------------------------------------
 //  Public Methods
 // -----------------------------------------------------------------------------
@@ -385,6 +409,8 @@ namespace videocore { namespace simpleApi {
     self.audioChannelCount = 2;
     self.audioSampleRate = 44100.;
     self.useAdaptiveBitrate = NO;
+    self.minBitrate = bps;
+    self.maxBitrate = bps;
     
     _previewView = [[VCPreviewView alloc] init];
     self.videoZoomFactor = 1.f;
@@ -474,6 +500,8 @@ namespace videocore { namespace simpleApi {
     
     if ( self.useAdaptiveBitrate ) {
         _bitrate = 1000000;
+        _minBitrate = 100000;
+        _maxBitrate = 1000000;
     }
     _previousBitrate = _bitrate;
     
@@ -485,6 +513,13 @@ namespace videocore { namespace simpleApi {
                                                   auto enc = std::dynamic_pointer_cast<videocore::IEncoder>(bSelf->m_h264Encoder);
                                                   
                                                   int br = enc->bitrate() * (vector * 0.25f + 1.0f);
+                                                  
+                                                  // set max/min bounds
+                                                  if (br > maxBitrate) {
+                                                      br = maxBitrate;
+                                                  } else if (br < minBitrate) {
+                                                      br = minBitrate;
+                                                  }
                                                   
                                                   if(vector < 0 && _previousBitrate < br) {
                                                       br = _previousBitrate;

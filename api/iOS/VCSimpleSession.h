@@ -63,6 +63,7 @@ typedef NS_ENUM(NSInteger, VCCameraState)
 /*! Setters / Getters for session properties */
 @property (nonatomic, assign) CGSize            videoSize;      // Change will not take place until the next RTMP Session
 @property (nonatomic, assign) int               bitrate;        // Change will not take place until the next RTMP Session
+
 @property (nonatomic, assign) int               fps;            // Change will not take place until the next RTMP Session
 @property (nonatomic, assign, readonly) BOOL    useInterfaceOrientation;
 @property (nonatomic, assign) VCCameraState cameraState;
@@ -77,6 +78,11 @@ typedef NS_ENUM(NSInteger, VCCameraState)
 @property (nonatomic, assign) BOOL          continuousExposure;
 @property (nonatomic, assign) BOOL          useAdaptiveBitrate;     /* Default is off */
 @property (nonatomic, readonly) int         estimatedThroughput;    /* Bytes Per Second. */
+
+// Min/Max bit rates defaults to 100k/1,000k when useAdaptiveBitrate is true
+@property (nonatomic, assign) int minBitrate;
+@property (nonatomic, assign) int maxBitrate;
+
 
 @property (nonatomic, assign) id<VCSessionDelegate> delegate;
 
