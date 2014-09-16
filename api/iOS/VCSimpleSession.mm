@@ -515,10 +515,10 @@ namespace videocore { namespace simpleApi {
                                                   int br = enc->bitrate() * (vector * 0.25f + 1.0f);
                                                   
                                                   // set max/min bounds
-                                                  if (br > maxBitrate) {
-                                                      br = maxBitrate;
-                                                  } else if (br < minBitrate) {
-                                                      br = minBitrate;
+                                                  if (br > _maxBitrate) {
+                                                      br = _maxBitrate;
+                                                  } else if (br < _minBitrate) {
+                                                      br = _minBitrate;
                                                   }
                                                   
                                                   if(vector < 0 && _previousBitrate < br) {
