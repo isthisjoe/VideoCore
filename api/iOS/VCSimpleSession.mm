@@ -346,7 +346,7 @@ namespace videocore { namespace simpleApi {
 {
     return _minBitrate;
 }
-- (void) setminBitrate:(int)minBitrate
+- (void) setMinBitrate:(int)minBitrate
 {
     _minBitrate = minBitrate;
 }
@@ -355,7 +355,7 @@ namespace videocore { namespace simpleApi {
 {
     return _maxBitrate;
 }
-- (void) setmaxBitrate:(int)maxBitrate
+- (void) setMaxBitrate:(int)maxBitrate
 {
     _maxBitrate = maxBitrate;
 }
