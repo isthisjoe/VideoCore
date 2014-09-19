@@ -409,8 +409,8 @@ namespace videocore { namespace simpleApi {
     self.audioChannelCount = 2;
     self.audioSampleRate = 44100.;
     self.useAdaptiveBitrate = NO;
-    self.minBitrate = bps;
-    self.maxBitrate = bps;
+    self.minBitrate = 100000; // default value is 100kbps
+    self.maxBitrate = 1000000; // default value is 1,000kbps
     
     _previewView = [[VCPreviewView alloc] init];
     self.videoZoomFactor = 1.f;
@@ -499,9 +499,8 @@ namespace videocore { namespace simpleApi {
     _bpsCeiling = _bitrate;
     
     if ( self.useAdaptiveBitrate ) {
-        _bitrate = 1000000;
-        _minBitrate = 100000;
-        _maxBitrate = 1000000;
+        // don't set default for adaptive bitrate
+        // _bitrate = 1000000; 
     }
     _previousBitrate = _bitrate;
     
