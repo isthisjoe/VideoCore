@@ -27,7 +27,12 @@
 #include <iostream>
 #include <videocore/stream/Apple/StreamSession.h>
 
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
 
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #define SCB(x) ((NSStreamCallback*)(x))
 #define NSIS(x) ((NSInputStream*)(x))
 #define NSOS(x) ((NSOutputStream*)(x))
@@ -48,7 +53,7 @@
 namespace videocore {
     namespace Apple {
         
-        StreamSession::StreamSession() : m_status(0)
+        StreamSession::StreamSession() : m_status(0), m_runLoop(nullptr), m_outputStream(nullptr), m_inputStream(nullptr)
         {
             m_streamCallback = [[NSStreamCallback alloc] init];
             SCB(m_streamCallback).session = this;
@@ -77,9 +82,17 @@ namespace videocore {
                 m_inputStream = (NSInputStream*)readStream;
                 m_outputStream = (NSOutputStream*)writeStream;
             
-                dispatch_async(dispatch_get_global_queue(0, 0), ^{
-                    this->startNetwork();
-                });
+
+                dispatch_queue_t queue = dispatch_queue_create("com.videocore.network", 0);
+                
+                if(m_inputStream && m_outputStream) {
+                    dispatch_async(queue, ^{
+                        this->startNetwork();
+                    });
+                }
+                else {
+                    nsStreamCallback(nullptr, NSStreamEventErrorOccurred);
+                }
             }
 
         }
@@ -87,30 +100,50 @@ namespace videocore {
         void
         StreamSession::disconnect()
         {
-            [NSIS(m_inputStream) close];
-            [NSOS(m_outputStream) close];
-            [NSIS(m_inputStream) release];
-            [NSOS(m_outputStream) release];
+            if(m_outputStream) {
+                [NSOS(m_outputStream) close];
+                [NSOS(m_outputStream) release];
+                m_outputStream = nullptr;
+            }
+            if(m_inputStream) {
+                [NSIS(m_inputStream) close];
+                [NSIS(m_inputStream) release];
+                m_inputStream = nullptr;
+            }
+
+            if(m_runLoop) {
+                CFRunLoopStop([NSRL(m_runLoop) getCFRunLoop]);
+                [(id)m_runLoop release];
+                m_runLoop = nullptr;
+            }
         }
-        
+        int
+        StreamSession::unsent()
+        {
+            return 0;
+        }
+        int
+        StreamSession::unread()
+        {
+            int unread = 0;
+            
+            return unread;
+        }
         size_t
         StreamSession::write(uint8_t *buffer, size_t size)
         {
             NSInteger ret = 0;
           
-          /*  if(NSOS(m_outputStream).hasSpaceAvailable) { */
+            if( NSOS(m_outputStream).hasSpaceAvailable ) {
                 ret = [NSOS(m_outputStream) write:buffer maxLength:size];
-                
-                if(ret >= 0 && ret < size && (m_status & kStreamStatusWriteBufferHasSpace)) {
-                    // Remove the Has Space Available flag
-                    m_status ^= kStreamStatusWriteBufferHasSpace;
-                }
-                else if (ret < 0) {
-                    printf("ERROR! [%d] buffer: %p [ 0x%02x ], size: %zu\n", NSOS(m_outputStream).streamError.code, buffer, buffer[0], size);
-                }
-            /*} else {
-                printf("-> I don't have any space :(");
-            }*/
+            }
+            if(ret >= 0 && ret < size && (m_status & kStreamStatusWriteBufferHasSpace)) {
+                // Remove the Has Space Available flag
+                m_status ^= kStreamStatusWriteBufferHasSpace;
+            }
+            else if (ret < 0) {
+                DLog("ERROR! [%ld] buffer: %p [ 0x%02x ], size: %zu\n", (long)NSOS(m_outputStream).streamError.code, buffer, buffer[0], size);
+            }
 
             return ret;
         }
@@ -148,6 +181,15 @@ namespace videocore {
                    NSIS(m_inputStream).streamStatus < 5 &&
                    NSOS(m_outputStream).streamStatus < 5) {
                     // Connected.
+                    CFDataRef nativeSocket = (CFDataRef)CFWriteStreamCopyProperty((CFWriteStreamRef)m_outputStream, kCFStreamPropertySocketNativeHandle);
+                    CFSocketNativeHandle *sock = (CFSocketNativeHandle *)CFDataGetBytePtr(nativeSocket);
+                    m_outSocket = *sock;
+                    int v = 1;
+                    setsockopt(*sock, IPPROTO_TCP, TCP_NODELAY, &v, sizeof(int));
+                    v = 0;
+                    setsockopt(*sock, SOL_SOCKET, SO_SNDBUF, &v, sizeof(int));
+                    CFRelease(nativeSocket);
+
                     setStatus(kStreamStatusConnected, true);
                 } else return;
             }
@@ -162,8 +204,9 @@ namespace videocore {
             }
             if(event & NSStreamEventErrorOccurred) {
                 setStatus(kStreamStatusErrorEncountered, true);
-                NSLog(@"Status: %d\n", ((NSStream*)stream).streamStatus);
-                NSLog(@"Error: %@", ((NSStream*)stream).streamError);
+                if(stream) {
+                    [[NSNotificationCenter defaultCenter] postNotificationName:@"com.videocore.stream.error" object:((NSStream*)stream).streamError];
+                }
             }
         }
         
@@ -177,7 +220,8 @@ namespace videocore {
             [NSOS(m_outputStream) scheduleInRunLoop:NSRL(m_runLoop) forMode:NSDefaultRunLoopMode];
             [NSOS(m_outputStream) open];
             [NSIS(m_inputStream) open];
-            
+
+            [(id)m_runLoop retain];
             [NSRL(m_runLoop) run];
         }
         

@@ -27,12 +27,15 @@
 
 #include <iostream>
 #include <videocore/stream/IStreamSession.hpp>
+#include <videocore/stream/TCPThroughputAdaptation.h>
+
 #include <UriParser/UriParser.hpp>
 
 #include <functional>
 #include <deque>
 #include <queue>
 #include <map>
+#include <chrono>
 
 #include <videocore/system/JobQueue.hpp>
 #include <cstdlib>
@@ -45,8 +48,8 @@ namespace videocore
 {
     class RTMPSession;
     
-    static const int32_t kBitrateAdaptationSampleDuration = 150; /* Milliseconds */
-    static const int32_t kBitrateAdaptationSampleCount = 10;
+    using BufStruct = struct { std::shared_ptr<Buffer> buf; std::chrono::steady_clock::time_point time; };
+    
     
     enum {
         kRTMPSessionParameterWidth=0,
@@ -61,10 +64,11 @@ namespace videocore
         kRTMPMetadataTimestamp=0,
         kRTMPMetadataMsgLength,
         kRTMPMetadataMsgTypeId,
-        kRTMPMetadataMsgStreamId
+        kRTMPMetadataMsgStreamId,
+        kRTMPMetadataIsKeyframe
     };
     
-    typedef MetaData<'rtmp', int32_t, int32_t, uint8_t, int32_t> RTMPMetadata_t;
+    typedef MetaData<'rtmp', int32_t, int32_t, uint8_t, int32_t, bool> RTMPMetadata_t;
     
     using RTMPSessionStateCallback = std::function<void(RTMPSession& session, ClientState_t state)>;
     
@@ -90,7 +94,7 @@ namespace videocore
         
         
         void streamStatusChanged(StreamStatus_t status);
-        void write(uint8_t* data, size_t size);
+        void write(uint8_t* data, size_t size, std::chrono::steady_clock::time_point packetTime = std::chrono::steady_clock::now(), bool isKeyframe = false);
         void dataReceived();
         void setClientState(ClientState_t state);
         void handshake();
@@ -105,21 +109,34 @@ namespace videocore
         void sendPublish();
         void sendHeaderPacket();
         void sendSetChunkSize(int32_t chunkSize);
+        void sendPong();
         void sendDeleteStream();
+        void sendSetBufferTime(int milliseconds);
+        
+        void increaseBuffer(int64_t size);
         
         bool parseCurrentData();
         void handleInvoke(uint8_t* p);
+        bool handleMessage(uint8_t* p, uint8_t msgTypeId);
+        
         std::string parseStatusCode(uint8_t *p);
         int32_t amfPrimitiveObjectSize(uint8_t* p);
         
     private:
-        
+        JobQueue            m_networkQueue;
         JobQueue            m_jobQueue;
+        std::chrono::steady_clock::time_point m_sentKeyframe;
+        std::condition_variable m_networkCond;
+        std::mutex              m_networkMutex;
         
         RingBuffer          m_streamOutRemainder;
         Buffer              m_s1, m_c1;
         
-        std::deque<std::shared_ptr<Buffer> > m_streamOutQueue;
+        TCPThroughputAdaptation m_throughputSession;
+        
+        uint64_t            m_previousTs;
+        
+        std::deque<BufStruct> m_streamOutQueue;
         
         std::map<int, uint64_t>             m_previousChunkData;
         std::unique_ptr<RingBuffer>         m_streamInBuffer;
@@ -134,15 +151,9 @@ namespace videocore
         std::string                     m_app;
         std::map<int32_t, std::string>  m_trackedCommands;
         
-        std::chrono::steady_clock::time_point m_bpsEpoch;
-        std::deque<size_t>                    m_bpsSamples;
-        float                                 m_bytesSent;
-        
-        size_t          m_bytesIn;
-        size_t          m_bytesOut;
-        
         size_t          m_outChunkSize;
         size_t          m_inChunkSize;
+        int64_t         m_bufferSize;
         
         int32_t         m_streamId;
         int32_t         m_createStreamInvoke;
@@ -155,7 +166,8 @@ namespace videocore
         bool            m_audioStereo;
         
         ClientState_t  m_state;
-        
+      
+        bool            m_clearing;
         bool            m_ending;
     };
 }
