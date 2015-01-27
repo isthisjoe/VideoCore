@@ -46,6 +46,7 @@ namespace videocore
         m_streamSession.reset(new Apple::StreamSession());
 #endif
         
+//        printf("uri: %s\n", uri.c_str());
         
         boost::char_separator<char> sep("/");
         boost::tokenizer<boost::char_separator<char>> uri_tokens(uri, sep);
@@ -57,19 +58,30 @@ namespace videocore
         
         
         int tokenCount = 0;
+        std::stringstream app;
         std::stringstream pp;
         for ( auto it = uri_tokens.begin() ; it != uri_tokens.end() ; ++it) {
             if(tokenCount++ < 2) { // skip protocol and host/port
                 continue;
             }
             if(tokenCount == 3) {
-                m_app = *it;
+                
+                app << *it << "/";
+                
+            } else if(tokenCount == 4) {
+                
+                app << *it;
+                m_app = app.str();
+//                printf("m_app: %s\n", m_app.c_str());
+                
             } else {
                 pp << *it << "/";
             }
         }
         
         m_playPath = pp.str();
+//        printf("m_playPath: %s\n", m_playPath.c_str());
+        
         m_playPath.pop_back();
         
         long port = (m_uri.port > 0) ? m_uri.port : 1935;
@@ -412,6 +424,8 @@ namespace videocore
         } else {
             url << m_uri.protocol << "://" << m_uri.host << "/" << m_app;
         }
+//        printf("sendConnectPacket url: %s\n", url.str().c_str());
+//        printf("sendConnectPacket m_app: %s\n", m_app.c_str());
         put_string(buff, "connect");
         put_double(buff, ++m_numberOfInvokes);
         m_trackedCommands[m_numberOfInvokes] = "connect";
