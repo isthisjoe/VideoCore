@@ -106,7 +106,7 @@ namespace videocore { namespace iOS {
     // -------------------------------------------------------------------------
     
     void
-    SourceBuffer::setBuffer(Apple::ApplePixelBufferRef ref, CVOpenGLESTextureCacheRef textureCache, JobQueue& m_glJobQueue, void* m_glesCtx)
+    SourceBuffer::setBuffer(Apple::PixelBufferRef ref, CVOpenGLESTextureCacheRef textureCache, JobQueue& m_glJobQueue, void* m_glesCtx)
     {
         
         bool flush = false;
@@ -173,8 +173,8 @@ namespace videocore { namespace iOS {
             //const auto currentBuffer = this->m_currentBuffer->cvBuffer();
             for ( auto it = this->m_pixelBuffers.begin() ; it != m_pixelBuffers.end() ; ) {
                 
-                if ( (it->second.buffer->isTemporary() || (now - it->second.time > std::chrono::milliseconds(1000)) ) && it->second.buffer->cvBuffer() != this->m_currentBuffer->cvBuffer() ) {
-                    // Buffer hasn't been used in more than 1s or is temporary, release it.
+                if ( (it->second.buffer->isTemporary()) && it->second.buffer->cvBuffer() != this->m_currentBuffer->cvBuffer() ) {
+                    // Buffer is temporary, release it.
                     it = this->m_pixelBuffers.erase(it);
                 } else {
                     ++ it;
@@ -450,7 +450,7 @@ namespace videocore { namespace iOS {
         
         //CVPixelBufferRef inPixelBuffer = (CVPixelBufferRef)data;
         
-        auto inPixelBuffer = *(Apple::ApplePixelBufferRef*)data ;
+        auto inPixelBuffer = *(Apple::PixelBufferRef*)data ;
         
         m_sourceBuffers[h].setBuffer(inPixelBuffer, this->m_textureCache, m_glJobQueue, m_glesCtx);
         auto it = std::find(this->m_layerMap[zIndex].begin(), this->m_layerMap[zIndex].end(), h);
